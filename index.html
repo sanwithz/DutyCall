@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>แชร์ตารางเวรประจำวัน</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: sans-serif; display: flex; justify-content: center; padding: 2rem; }
+    button { padding: 1rem 2rem; font-size: 1rem; border: none; border-radius: 4px; background: #6D57FF; color: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <button id="shareBtn" disabled>กำลังโหลด...</button>
+
+  <script>
+    // Configuration
+    const LIFF_ID    = "YOUR_LIFF_ID";
+    const DAY_URL    = 'https://opensheet.elk.sh/1X2iwknZOpFErFyniArGdLCghwURp2Z3ERGMqlNSLPEI/schedule_day';
+    const NIGHT_URL  = 'https://opensheet.elk.sh/1X2iwknZOpFErFyniArGdLCghwURp2Z3ERGMqlNSLPEI/schedule_night';
+
+    let flexMessage;  // will hold the ready-to-share Flex message
+
+    // Helper: construct a section box for morning/evening items
+    function buildSection(title, items) {
+      const contents = [{
+        type: "text",
+        text: title,
+        weight: "bold",
+        size: "md"
+      }];
+      items.forEach(item => {
+        contents.push({
+          type: "box",
+          layout: "baseline",
+          contents: [
+            { type: "text",
+              text: item['ระบบแจ้งเตือนตารางสอนประจำวัน'] + " :",
+              weight: "bold",
+              size: "sm",
+              flex: 2,
+              wrap: true
+            },
+            { type: "text",
+              text: item['undefined'],
+              size: "sm",
+              wrap: true,
+              flex: 3
+            }
+          ]
+        });
+      });
+      return {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        borderWidth: "light",
+        borderColor: "#E5E7EB",
+        cornerRadius: "md",
+        paddingAll: "md",
+        contents
+      };
+    }
+
+    // Fetch data & build the Flex message
+    async function prepareFlexMessage() {
+      const [dayRes, nightRes] = await Promise.all([
+        fetch(DAY_URL),
+        fetch(NIGHT_URL)
+      ]);
+      const dayData   = await dayRes.json();
+      const nightData = await nightRes.json();
+
+      const dateText   = dayData[0]['undefined'];
+      const dayItems   = dayData.slice(1);
+      const nightItems = nightData.slice(1);
+
+      const bubble = {
+        type: "bubble",
+        size: "giga",
+        header: {
+          type: "box",
+          layout: "vertical",
+          backgroundColor: "#6D57FF",
+          paddingAll: "lg",
+          contents: [{
+            type: "text",
+            text: "ระบบแจ้งเตือนตารางเวรประจำวัน",
+            weight: "bold",
+            size: "xl",
+            color: "#FFFFFF"
+          }]
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "md",
+          contents: [
+            {
+              type: "text",
+              text: dateText,
+              size: "sm",
+              color: "#6B7280",
+              align: "center"
+            },
+            buildSection("🕹 ตำแหน่งเวรเช้า", dayItems),
+            buildSection("🕹 ตำแหน่งเวรเย็น", nightItems)
+          ]
+        }
+      };
+
+      flexMessage = {
+        type: "flex",
+        altText: "ระบบแจ้งเตือนตารางเวรประจำวัน",
+        contents: bubble
+      };
+    }
+
+    // Initialize LIFF and enable the share button
+    liff.init({ liffId: LIFF_ID })
+      .then(async () => {
+        if (!liff.isInClient()) {
+          alert("กรุณาเปิดหน้านี้ในแอป LINE เท่านั้น");
+          return;
+        }
+        // Prepare the Flex message data
+        await prepareFlexMessage();
+
+        const btn = document.getElementById('shareBtn');
+        btn.textContent = "แชร์ตารางเวรให้เพื่อน";
+        btn.disabled = false;
+
+        // On click, open the Share Target Picker
+        btn.addEventListener('click', async () => {
+          try {
+            const result = await liff.shareTargetPicker([ flexMessage ]);
+            if (result) {
+              console.log("แชร์สำเร็จ:", result);
+            } else {
+              console.log("ผู้ใช้ยกเลิกการแชร์");
+            }
+          } catch (err) {
+            console.error("เกิดข้อผิดพลาดขณะแชร์:", err);
+          }
+        });
+      })
+      .catch(err => {
+        console.error("LIFF init failed:", err);
+        alert("ไม่สามารถเชื่อมต่อ LIFF ได้");
+      });
+  </script>
+</body>
+</html>
